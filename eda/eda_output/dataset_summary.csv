@@ -1,0 +1,16 @@
+Metric,AILF (Acute Liver Failure),TRAM (Tramadol Mortality)
+Total reports (raw),"39,930","27,246"
+Positive class,"17,100","9,846"
+Negative class,"22,830","17,400"
+Positive ratio,0.43,0.36
+Train set,"25,555","17,436"
+Dev set,"6,389","4,360"
+Test set,"7,986","5,450"
+Avg sentence length (words),44.7,30.3
+Std sentence length,35.6,14.9
+% Female,48.7%,51.6%
+% Male,45.3%,39.8%
+% Age <18,4.7%,3.7%
+% Age 18–39,14.5%,21.2%
+% Age 40–64,34.2%,33.6%
+% Age ≥65,29.0%,25.7%

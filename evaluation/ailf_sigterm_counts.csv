@@ -1,0 +1,12 @@
+method,median_n_sig_terms
+ror,250
+xgb_cal,129
+xgb,128
+albert_temp,126
+albert_temp_cal,123
+biobert_temp_cal,116
+biobert_temp,114
+pubmedbert_temp_cal,113
+pubmedbert_temp,110
+prr,6
+ebgm,1

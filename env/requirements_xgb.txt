@@ -1,0 +1,8 @@
+# XGBoost baseline - CPU only, no GPU needed.
+xgboost>=2.0
+optuna>=3.6
+scikit-learn>=1.4
+pandas>=2.0
+numpy>=1.26
+scipy>=1.11
+tqdm>=4.66

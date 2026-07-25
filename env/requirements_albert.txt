@@ -1,0 +1,25 @@
+# ==========================================================================
+# Pinned dependencies for ALBERT / BioBERT transformer training.
+# Versions match the 2026 repo stack so the original Trainer API
+# (evaluation_strategy=..., transformers.AdamW, etc.) works unchanged.
+#
+# NOTE: torch is installed separately in setup_env.sh with the correct CUDA
+#       wheel index for the Blythe L40 GPUs, so it is intentionally NOT listed
+#       here (avoids pip pulling a CPU-only build).
+# ==========================================================================
+transformers==4.41.2
+datasets==2.19.1
+accelerate==0.30.1
+scikit-learn==1.4.2
+pandas==2.2.2
+numpy==1.26.4
+tqdm==4.66.4
+
+# Required by ALBERT's tokenizer. The 'textattack/albert-base-v2-imdb' checkpoint
+# ships a SentencePiece model (spiece.model) but no pre-converted tokenizer.json,
+# so transformers must convert slow -> fast at load time. Without these two,
+# AutoTokenizer.from_pretrained raises:
+#   "Couldn't instantiate the backend tokenizer ... You need to have
+#    sentencepiece installed to convert a slow tokenizer to a fast one."
+sentencepiece==0.2.0
+protobuf==4.25.3
