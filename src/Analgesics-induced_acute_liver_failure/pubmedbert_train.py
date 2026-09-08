@@ -116,6 +116,9 @@ def full_process(split, dataset, model, tokenizer):
 
     # Set a global seed
     set_seed(42)
+    # [CV-FIX] Re-initialise the model from its pretrained checkpoint for THIS fold,
+    # [CV-FIX] so fine-tuned weights never leak across cross-validation splits.
+    model = AutoModelForSequenceClassification.from_pretrained("microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext", num_labels=2, ignore_mismatched_sizes=True)
 
     # [CLUSTER] readable tag for this split, e.g. dev1/test3 -> "13"
     split_tag = f'{split["dev"][0]}{split["test"][0]}'
@@ -195,13 +198,15 @@ def full_process(split, dataset, model, tokenizer):
 
 possible_splits = []
 
-        
-for i in range(5):
-    for j in range(5):
-        if i !=j:
-            dicti = {"dev": [i], "test": [j], "train": [x for x in range(5) if x != i and x != j]}
-            possible_splits.append(dicti)
-        
+# [5-FOLD] True 5-fold CV: each of the 5 splits is the TEST set exactly once,
+# [5-FOLD] with a fixed dev split and the remaining three as train. This replaces
+# [5-FOLD] the original 5x5 = 20-fold (all dev/test pairs) grid. Same split.csv /
+# [5-FOLD] grouping is used; we simply enumerate 5 folds instead of 20 so every
+# [5-FOLD] model in the study shares an identical, standard 5-fold CV.
+for test in range(5):
+    dev = (test + 1) % 5
+    train = [x for x in range(5) if x != test and x != dev]
+    possible_splits.append({"dev": [dev], "test": [test], "train": train})
 for split in tqdm(possible_splits):
     full_process(split, DATASET, model, tokenizer)   # [CLUSTER] DATASET var (defaults to original)
 

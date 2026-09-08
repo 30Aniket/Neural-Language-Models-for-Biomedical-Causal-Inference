@@ -18,8 +18,8 @@
 #     bash transfer/download_from_cluster.sh <user> [dataset] [model]
 #
 # Examples:
-#     bash transfer/download_from_cluster.sh scrtp_username Analgesics-induced_acute_liver_failure albert
-#     bash transfer/download_from_cluster.sh scrtp_username Tramadol-related_mortalities biobert
+#     bash transfer/download_from_cluster.sh cstqrd Analgesics-induced_acute_liver_failure albert
+#     bash transfer/download_from_cluster.sh cstqrd Tramadol-related_mortalities biobert
 #
 # Options:
 #     NO_WEIGHTS=1 ...    skip the weights and fetch only predictions, curves and

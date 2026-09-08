@@ -33,7 +33,7 @@ USAGE
     python run_evaluation.py --root ~/biocausal_results                # all stages
     python run_evaluation.py --root ~/biocausal_results --stages metrics ttest
     python run_evaluation.py --root ~/biocausal_results --compare repo2026/
-    python run_evaluation.py --root ~/biocausal_results --stages trees --splits 01
+    python run_evaluation.py --root ~/biocausal_results --stages trees --splits 10
 
 REQUIRES
     dat/<dataset>/proc/df_together.csv          (for stages 2 and 4)
@@ -56,7 +56,11 @@ warnings.filterwarnings("ignore")
 
 DATASETS = {"ailf": "Analgesics-induced_acute_liver_failure",
             "tram": "Tramadol-related_mortalities"}
-SPLITS = [f"{i}{j}" for i in range(5) for j in range(5) if i != j]
+# The 5-fold CV actually run on the cluster writes exactly these folds
+# (df_res<test><dev>): each fold is the test set once. The old 20-combo
+# generator produced 15 ids that never exist on disk - load_split skipped them,
+# but the "split 01" output came out empty and medians were mislabelled.
+SPLITS = ["10", "21", "32", "43", "04"]
 METRICS = {"auc": 0, "precision": 1, "recall": 2, "f1": 3, "accuracy": 4, "ece": 5}
 METRIC_COLS = list(METRICS.keys())
 
@@ -239,6 +243,18 @@ def proc_dir(root, short):
     return os.path.join(root, "dat", DATASETS[short], "proc")
 
 
+def find_together(root, short):
+    """Locate df_together.csv for stages 2 and 4. The fetch script leaves
+    per-dataset copies as <short>_df_together.csv in root/ and root/root_csvs/,
+    so check those too instead of forcing a manual copy into proc/."""
+    for c in (os.path.join(proc_dir(root, short), "df_together.csv"),
+              os.path.join(root, f"{short}_df_together.csv"),
+              os.path.join(root, "root_csvs", f"{short}_df_together.csv")):
+        if os.path.isfile(c):
+            return c
+    return None
+
+
 def find_model_dirs(pdir):
     found = {}
     if not os.path.isdir(pdir):
@@ -263,7 +279,7 @@ def load_split(pdir, model_dirs, split):
     concatenating misaligned frames would inject NaNs and corrupt every metric.
     """
     frames, label, idx = [], None, None
-    for _, path in model_dirs.items():
+    for key, path in model_dirs.items():
         f = os.path.join(path, f"df_res{split}.csv")
         if not os.path.isfile(f):
             continue
@@ -271,7 +287,19 @@ def load_split(pdir, model_dirs, split):
         if label is None and "label" in d.columns:
             label = d["label"]
         idx = d.index if idx is None else idx.intersection(d.index)
-        frames.append(d.drop(columns=["label"], errors="ignore"))
+        sc = d.drop(columns=["label"], errors="ignore")
+        # Each df_res carries the model's raw score plus an isotonic-calibrated
+        # twin (…_cal), e.g. xgb -> {xgb, xgb_cal}. Rename by FOLDER key so the
+        # three PEFT rank configs (…_paper/_r64/_r128) - which share an internal
+        # column name - don't overwrite each other on concat, while keeping the
+        # _cal suffix so calibrated and uncalibrated metrics stay separable.
+        newnames = [f"{key}_cal" if str(c).endswith("_cal") else key
+                    for c in sc.columns]
+        if len(set(newnames)) != len(newnames):
+            # unexpected layout (>1 raw column) -> namespace every column safely
+            newnames = [f"{key}_{c}" for c in sc.columns]
+        sc.columns = newnames
+        frames.append(sc)
     if not frames or label is None:
         return None
 
@@ -338,16 +366,47 @@ def stage_metrics(root, short, outdir, compare=None):
     with open(os.path.join(outdir, f"{short}_all_results.json"), "w") as f:
         json.dump(all_results, f)
 
-    med = scores.groupby("model")[METRIC_COLS].median().reset_index()
-    med.to_csv(os.path.join(outdir, f"{short}_median_classification_results.csv"), index=False)
-    s01 = scores[scores.cv_id == "01"].drop(columns="cv_id").reset_index(drop=True)
-    s01.to_csv(os.path.join(outdir, f"{short}_split01_classification_results.csv"), index=False)
+    grp = scores.groupby("model")[METRIC_COLS]
+    med  = grp.median().reset_index()
+    mean = grp.mean().reset_index()
+    std  = grp.std(ddof=1).reset_index()
+
+    med.to_csv(os.path.join(outdir,  f"{short}_median_classification_results.csv"), index=False)
+    mean.to_csv(os.path.join(outdir, f"{short}_mean_classification_results.csv"),   index=False)
+
+    # dissertation-ready combined table: mean and std side by side per metric
+    summary = (mean.set_index("model").add_suffix("_mean")
+               .join(std.set_index("model").add_suffix("_std")))
+    summary = summary[[f"{m}_{s}" for m in METRIC_COLS
+                       for s in ("mean", "std")]].reset_index()
+    summary.to_csv(os.path.join(outdir, f"{short}_summary_mean_std.csv"), index=False)
+
+    # Fold coverage per score column. Anything below 5 means a job did not
+    # finish all folds, and its mean/median is over fewer values.
+    cov = scores.groupby("model")["cv_id"].nunique()
+    cov.rename("n_folds").reset_index().to_csv(
+        os.path.join(outdir, f"{short}_fold_coverage.csv"), index=False)
+    short_cov = cov[cov < len(SPLITS)]
+    if len(short_cov):
+        print(f"\n  INCOMPLETE score columns (fewer than {len(SPLITS)} folds):")
+        for m, k in short_cov.items():
+            got = sorted(scores.loc[scores.model == m, "cv_id"].unique())
+            print(f"      {m:<28} {k}/{len(SPLITS)} folds: {','.join(got)}")
 
     fmt = lambda v: f"{v:.4f}"
-    print("\n  MEDIAN over 20 splits (comparable with the paper's tables)")
+    print(f"\n  MEAN over {len(SPLITS)} folds")
+    print(mean.to_string(index=False, float_format=fmt))
+    print(f"\n  MEDIAN over {len(SPLITS)} folds (comparable with the paper's tables)")
     print(med.to_string(index=False, float_format=fmt))
-    print("\n  SPLIT 01 only (fold-independent: each model starts from its pretrained checkpoint)")
-    print(s01.to_string(index=False, float_format=fmt))
+
+    # per-fold tables: one CSV per fold + printed, for every fold that has data.
+    # Each carries all six metrics for every model (same layout as the fold view).
+    present = [s for s in SPLITS if (scores.cv_id == s).any()]
+    for split in present:
+        sf = scores[scores.cv_id == split].drop(columns="cv_id").reset_index(drop=True)
+        sf.to_csv(os.path.join(outdir, f"{short}_split{split}_classification_results.csv"), index=False)
+        print(f"\n  FOLD {split} only (single-fold view)")
+        print(sf.to_string(index=False, float_format=fmt))
 
     if compare:
         pf = os.path.join(compare, f"{short}_classification_scores.csv")
@@ -367,11 +426,11 @@ def stage_metrics(root, short, outdir, compare=None):
 # ==========================================================================
 def stage_zscores(root, short, outdir):
     pdir = proc_dir(root, short)
-    together = os.path.join(pdir, "df_together.csv")
-    if not os.path.isfile(together):
-        print(f"  [{short}] df_together.csv missing at {together}\n"
-              f"        copy it from the cluster (or your local <ds>_df_together.csv) - "
-              f"stages 2 and 4 need the clinical term columns.", file=sys.stderr)
+    together = find_together(root, short)
+    if together is None:
+        print(f"  [{short}] df_together.csv not found - looked in proc/, "
+              f"{short}_df_together.csv and root_csvs/. Stages 2 and 4 need "
+              f"the clinical term columns.", file=sys.stderr)
         return None
     model_dirs = find_model_dirs(pdir)
     base = pd.read_csv(together, index_col=0).drop(columns=["Temp_sentence"], errors="ignore")
@@ -446,7 +505,27 @@ def stage_ttest(root, short, outdir):
     with open(rf) as f:
         results = json.load(f)
 
-    model_names = list(results[list(results.keys())[0]].keys())
+    # A paired t-test needs the SAME folds for both models. Taking the model
+    # list from the first split alone raises KeyError as soon as any model is
+    # missing a fold (e.g. Gemma4-31B AILF stopping at 4/5 on walltime).
+    # Use only models present in EVERY fold, and say which were dropped.
+    splits_present = list(results.keys())
+    complete = set(results[splits_present[0]].keys())
+    for sp in splits_present[1:]:
+        complete &= set(results[sp].keys())
+    all_seen = set()
+    for sp in splits_present:
+        all_seen |= set(results[sp].keys())
+    dropped = sorted(all_seen - complete)
+    model_names = sorted(complete)
+    if dropped:
+        print(f"  NOTE: {len(dropped)} score column(s) excluded from the paired "
+              f"t-tests because they are missing at least one fold:")
+        for d in dropped:
+            have = sorted(sp for sp in splits_present if d in results[sp])
+            print(f"        {d:<28} folds present: {','.join(have)}")
+        print("        (their per-fold, mean and median metrics are still in the "
+              "stage-1 CSVs)")
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -470,10 +549,21 @@ def stage_ttest(root, short, outdir):
         pdf.to_csv(os.path.join(hm_dir, f"{metric}_pvalues.csv"))
 
         if have_plot:
-            plt.figure(figsize=(10, 10))
-            sns.heatmap(M, annot=True, xticklabels=model_names, yticklabels=model_names,
+            # 11 models gave a 22x22 grid; 27 models give 54x54. Annotating 2916
+            # cells in a 10x10in figure is unreadable, so scale the canvas and
+            # drop the numbers once the matrix is large (the CSV keeps them).
+            n = len(model_names)
+            side = max(10, min(40, 0.42 * n))
+            annot = n <= 20
+            tick_fs = max(4, min(10, 260 / max(n, 1)))
+            plt.figure(figsize=(side, side))
+            sns.heatmap(M, annot=annot, fmt=".2f" if annot else "",
+                        annot_kws={"size": max(4, tick_fs - 1)} if annot else None,
+                        xticklabels=model_names, yticklabels=model_names,
                         cmap=ListedColormap(['red', 'green']), cbar=False,
                         vmin=0, vmax=0.05, center=0.05, linewidth=0.05)
+            plt.xticks(fontsize=tick_fs, rotation=90)
+            plt.yticks(fontsize=tick_fs, rotation=0)
             plt.title(f"Student's t-test p-values for {DATASETS[short]}, {metric}")
             plt.tight_layout()
             plt.savefig(os.path.join(hm_dir, f"{metric}_pvalues.png"), dpi=150)
@@ -505,9 +595,9 @@ def stage_trees(root, short, outdir, only_splits=None, only_models=None):
         return None
 
     pdir = proc_dir(root, short)
-    together = os.path.join(pdir, "df_together.csv")
-    if not os.path.isfile(together):
-        print(f"  [{short}] df_together.csv missing - skipping trees.", file=sys.stderr)
+    together = find_together(root, short)
+    if together is None:
+        print(f"  [{short}] df_together.csv not found - skipping trees.", file=sys.stderr)
         return None
     model_dirs = find_model_dirs(pdir)
     base = pd.read_csv(together, index_col=0).drop(columns=["Temp_sentence"], errors="ignore")
@@ -515,6 +605,8 @@ def stage_trees(root, short, outdir, only_splits=None, only_models=None):
     made = 0
 
     splits = only_splits or SPLITS
+    print(f"  building trees for up to {len(find_model_dirs(pdir))*2} score columns "
+          f"x {len(splits)} folds (skips any that fail the z-score thresholds)")
     for split in splits:
         preds = load_split(pdir, model_dirs, split)
         if preds is None:
@@ -526,6 +618,7 @@ def stage_trees(root, short, outdir, only_splits=None, only_models=None):
         if only_models:
             models = [m for m in models if m in only_models]
 
+        print(f"    fold {split}: {len(models)} score columns", flush=True)
         for model in models:
             try:
                 z = calculate_z_scores(df, td, model, as_frame=True)

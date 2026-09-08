@@ -12,11 +12,11 @@
 # (do NOT rsync through the login node).
 #
 # Usage:
-#     bash transfer/upload_to_cluster.sh scrtp_username
+#     bash transfer/upload_to_cluster.sh cstqrd
 #
 # Optional overrides:
-#     SSH_KEY=~/.ssh/mykey  bash transfer/upload_to_cluster.sh scrtp_username
-#     REMOTE_BASE=/springbrook/share/other  bash transfer/upload_to_cluster.sh scrtp_username
+#     SSH_KEY=~/.ssh/mykey  bash transfer/upload_to_cluster.sh cstqrd
+#     REMOTE_BASE=/springbrook/share/other  bash transfer/upload_to_cluster.sh cstqrd
 # ==========================================================================
 set -euo pipefail
 

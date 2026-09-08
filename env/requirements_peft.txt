@@ -1,0 +1,9 @@
+# ==========================================================================
+# PEFT/QLoRA additions -- installed INTO the existing venv_biomistral
+# (which already has torch 2.5 cu124, transformers 4.46.3, accelerate, datasets,
+# scikit-learn, pandas, numpy, tqdm). Only two packages are new.
+#
+# Versions chosen to be compatible with transformers 4.46.3 + torch 2.5 (cu124).
+# ==========================================================================
+peft==0.13.2
+bitsandbytes==0.44.1

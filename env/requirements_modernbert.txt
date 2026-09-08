@@ -1,0 +1,16 @@
+# ==========================================================================
+# BioClinical ModernBERT -- SEPARATE venv (venv_modernbert).
+# ModernBERT architecture requires transformers >= 4.48; do NOT install into
+# the main transformers==4.41.2 venv used by ALBERT/BioBERT/PubMedBERT.
+# torch is installed separately in setup_env_modernbert.sh.
+# ==========================================================================
+transformers>=4.48.0,<4.57
+datasets==2.19.1
+accelerate>=0.30.1
+scikit-learn==1.4.2
+pandas==2.2.2
+numpy>=1.26.4,<2.0
+tqdm==4.66.4
+
+# ModernBERT can use FlashAttention-2 for speed if available; optional, not required.
+# flash-attn   # uncomment only if the cluster toolchain supports building it

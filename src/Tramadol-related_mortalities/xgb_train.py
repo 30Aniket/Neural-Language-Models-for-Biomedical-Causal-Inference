@@ -185,12 +185,14 @@ def full_process(split, dataset, shared_params=None):
 
 
 possible_splits = []
-for i in range(5):
-    for j in range(5):
-        if i != j:
-            dicti = {"dev": [i], "test": [j], "train": [x for x in range(5) if x != i and x != j]}
-            possible_splits.append(dicti)
-
+# [5-FOLD] True 5-fold CV: each of the 5 splits is the TEST set exactly once, with a
+# [5-FOLD] fixed dev split and the remaining three as train. Replaces the original
+# [5-FOLD] 5x5 = 20-fold (all dev/test pairs) grid so every model in the study shares
+# [5-FOLD] an identical, standard 5-fold CV. Same split.csv / grouping is used.
+for test in range(5):
+    dev = (test + 1) % 5
+    train = [x for x in range(5) if x != test and x != dev]
+    possible_splits.append({"dev": [dev], "test": [test], "train": train})
 if args.splits:
     possible_splits = [s for s in possible_splits
                        if f'{s["dev"][0]}{s["test"][0]}' in args.splits]

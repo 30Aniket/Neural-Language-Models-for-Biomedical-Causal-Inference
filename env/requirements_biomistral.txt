@@ -1,0 +1,21 @@
+# ==========================================================================
+# BioMistral-7B -- SEPARATE venv (venv_biomistral).
+# Full fine-tuning of a 7B decoder under DeepSpeed ZeRO-3. torch is installed
+# separately in setup_env_biomistral.sh (torch==2.5.0, CUDA 12.4) to match the
+# CUDA toolchain used by the ModernBERT venv.
+#
+# NOTE: we use DeepSpeed's *torch* AdamW (optimizer type "AdamW") and NO CPU
+# offload, so DeepSpeed does NOT need to JIT-compile its CPUAdam/FusedAdam ops --
+# this avoids the usual on-cluster CUDA-compile headaches.
+# ==========================================================================
+transformers==4.46.3
+deepspeed==0.15.4
+accelerate==0.34.2
+datasets==2.19.1
+scikit-learn==1.4.2
+pandas==2.2.2
+numpy>=1.26.4,<2.0
+tqdm==4.66.4
+sentencepiece==0.2.0
+protobuf==4.25.3
+ninja==1.11.1.1

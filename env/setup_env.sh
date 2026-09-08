@@ -8,12 +8,12 @@
 # Blythe home directories have a 2 GB / 100k-file quota, which a torch+CUDA
 # venv would blow immediately. The login banner also states that all project
 # work belongs on the share directory:
-#     $HOME  = /springbrook/home/c/scrtp_username        (2 GB   - keep empty-ish)
+#     $HOME  = /springbrook/home/c/cstqrd        (2 GB   - keep empty-ish)
 #     $SHARE = /springbrook/share/dcsresearch    (~10 TB - project work here)
 #
 # RUN THIS ONCE, ON THE LOGIN NODE (it only downloads packages; no GPU needed):
-#     [scrtp_username@login01(blythe) ~]$ cd $SHARE/$USER/biocausal_cluster/env
-#     [scrtp_username@login01(blythe) env]$ bash setup_env.sh
+#     [cstqrd@login01(blythe) ~]$ cd $SHARE/$USER/biocausal_cluster/env
+#     [cstqrd@login01(blythe) env]$ bash setup_env.sh
 #
 # Blythe uses a FLAT module system, so Python is loaded directly with
 # `module load Python/<version>`. Verify the exact name available to you with:
