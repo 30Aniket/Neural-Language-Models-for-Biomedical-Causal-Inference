@@ -19,8 +19,8 @@
 # NOT downloaded: src/, slurm/, env/, data/, transfer/ and the top-level .sh/.py
 # scripts. You already have those locally. Nothing here depends on them.
 #
-# gemma4_31b is EXCLUDED by default because both streams are still running.
-# Re-run with WITH_31B=1 once they finish; rsync will fetch only what is new.
+# gemma4_31b is EXCLUDED by default. Pass WITH_31B=1 to include it; rsync then
+# fetches only what is new.
 #
 # NOTE ON WEIGHTS. Only the four encoders (albert, biobert, pubmedbert,
 # modernbert) call trainer.save_model(). Every QLoRA decoder driver deletes its
@@ -57,9 +57,11 @@ fi
 RSH="ssh"
 [[ -n "${SSH_KEY}" ]] && RSH="ssh -i ${SSH_KEY}"
 
-SKIP_31B=()
+# macOS ships bash 3.2, where "${arr[@]}" on an EMPTY array trips `set -u`
+# ("unbound variable"). Keep a harmless sentinel so the array is never empty.
+SKIP_31B=(--exclude '.__no_such_file__')
 if [[ "${WITH_31B}" != "1" ]]; then
-  SKIP_31B=(--exclude 'gemma4_31b*' --exclude 'cross_val_gemma4_31b*')
+  SKIP_31B+=(--exclude 'gemma4_31b*' --exclude 'cross_val_gemma4_31b*')
 fi
 
 COMMON_EXCLUDES=(
@@ -73,7 +75,7 @@ COMMON_EXCLUDES=(
 echo "=================================================================="
 echo " Source : ${USER_NAME}@${DATA_NODE}:${REMOTE}"
 echo " Dest   : ${DEST}"
-echo " gemma4_31b: $([[ "${WITH_31B}" == "1" ]] && echo 'included' || echo 'EXCLUDED (still running)')"
+echo " gemma4_31b: $([[ "${WITH_31B}" == "1" ]] && echo 'included' || echo 'excluded')"
 echo " HF cache  : $([[ "${WITH_HF_CACHE}" == "1" ]] && echo 'INCLUDED (+45 GB)' || echo 'skipped')"
 echo "=================================================================="
 

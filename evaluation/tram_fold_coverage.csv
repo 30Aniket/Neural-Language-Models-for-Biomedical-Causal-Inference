@@ -19,6 +19,8 @@ gemma3_r64,5
 gemma3_r64_cal,5
 gemma4_12b_paper,5
 gemma4_12b_paper_cal,5
+gemma4_31b_paper,5
+gemma4_31b_paper_cal,5
 med_llama_paper,5
 med_llama_paper_cal,5
 med_llama_r128,5
